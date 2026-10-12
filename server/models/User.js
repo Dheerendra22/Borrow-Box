@@ -35,13 +35,12 @@ const userSchema = new mongoose.Schema(
 // Runs BEFORE a user document is saved to the database.
 // Only re-hashes the password when it was actually changed
 // (so updating your name doesn't re-hash the existing password).
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
   // saltRounds: 10 is a good balance of speed vs security
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // ── Instance method ───────────────────────────────────────────────
