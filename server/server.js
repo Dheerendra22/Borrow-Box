@@ -18,15 +18,42 @@ const app = express();
 // ─── Connect to MongoDB ───────────────────────────────────────────
 connectDB();
 
-// ─── Security Middleware ──────────────────────────────────────────
+// ─── 1. CORS FIRST — MUST RUN BEFORE HELMET & RATE LIMITERS ───────
+// Browser OPTIONS preflight requests must receive CORS headers
+// without being blocked by security headers or rate limits.
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+].filter(Boolean);
 
-// Helmet sets secure HTTP response headers
-app.use(helmet());
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
-// General rate limiter for all API endpoints (max 300 requests per 15 minutes)
+app.use(cors(corsOptions));
+
+// ─── 2. Security Middleware ────────────────────────────────────────
+// Helmet with cross-origin resource sharing adjustments
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+// General rate limiter for all API endpoints (max 500 requests per 15 min)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -36,10 +63,10 @@ const globalLimiter = rateLimit({
 });
 app.use("/api", globalLimiter);
 
-// Stricter rate limiter specifically for auth endpoints (max 20 attempts per 15 minutes)
+// Auth rate limiter (max 60 attempts per 15 min — generous for local development)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -49,44 +76,27 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth", authLimiter);
 
-// ─── Global Middleware ────────────────────────────────────────────
-
-// Parse incoming JSON request bodies (limit payload to 100kb for safety)
+// ─── 3. Global Body Parser & Logger ────────────────────────────────
 app.use(express.json({ limit: "100kb" }));
-
-// Allow requests from our React frontend (CLIENT_URL in .env)
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    credentials: true, // allow cookies / auth headers
-  })
-);
-
-// Log every HTTP request to the console (method, path, status, time)
 app.use(morgan("dev"));
 
-// ─── Routes ──────────────────────────────────────────────────────
-
-// Health check — a quick way to confirm the API is alive
+// ─── 4. Routes ────────────────────────────────────────────────────
+// Health check
 app.get("/api/health", (req, res) => {
   res.json({ success: true, message: "BorrowBox API running" });
 });
 
-// Authentication routes: /api/auth/register, /api/auth/login, /api/auth/me
+// Authentication routes
 app.use("/api/auth", authRoutes);
 
-// Item routes: /api/items (browse, create, view, delete)
+// Item routes
 app.use("/api/items", itemRoutes);
 
-// Borrow request routes: /api/requests (create, mine, incoming, approve, reject, return)
+// Borrow request routes
 app.use("/api/requests", requestRoutes);
 
-// ─── Error Handlers (must come LAST) ─────────────────────────────
-
-// Catch requests to routes that don't exist
+// ─── 5. Error Handlers (must come LAST) ───────────────────────────
 app.use(notFound);
-
-// Handle all errors and send { success: false, message } response
 app.use(errorHandler);
 
 // ─── Start Server ─────────────────────────────────────────────────
