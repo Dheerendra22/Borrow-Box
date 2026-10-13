@@ -302,3 +302,5 @@ Once deployed, run this quick 2-minute checklist on your live URL:
 6. [ ] **Send Request**: In an incognito window, log in as `demo2@borrowbox.com`, request the newly added item.
 7. [ ] **Approve & Return Cycle**: As `demo1`, open Dashboard ➔ **Incoming Requests**, click **Approve**, verify status turns **Borrowed**, and then click **Mark Returned**.
 8. [ ] **Refresh Route**: Press `F5` / `Cmd+R` on `/dashboard` or `/items/:id` ➔ confirm the page reloads cleanly without 404 errors (verifying `vercel.json`).
+
+
